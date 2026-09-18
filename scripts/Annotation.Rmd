@@ -1,0 +1,91 @@
+```{r Libraries}
+library(Azimuth) # 0.5.0
+library(glmGamPoi)
+library(Seurat)
+library(future)
+# plan("multisession", workers = 1)
+options(future.globals.maxSize = 120000 * 1024^2)
+```
+
+
+```{r Set Reference}
+# for mouse
+# dir_ref <- "/restricted/projectnb/crem-bioinfo/reference_data/REFERENCES/Azimuth/pansci_full/"
+# for human lung
+dir_ref <- "/restricted/projectnb/crem-bioinfo/reference_data/REFERENCES/Azimuth/lungref.SeuratData/azimuth/"
+sc <- readRDS("/restricted/projectnb/crem-trainees/Kotton_Lab/Eitan/OutsidePaperObjects/Seurat/Habermann.rds")
+rownames(sc@assays$RNA@meta.features) <- gsub(pattern = "_", replacement = "-", x = rownames(sc@assays$RNA@meta.features))
+# sc@reductions <- list()
+# sc <- JoinLayers(sc, assay = "RNA")
+# sc <- SCTransform(sc, verbose = FALSE)
+sc <- RunAzimuth(sc, reference = dir_ref)
+```
+
+```{r Set New Reference}
+ref <- readRDS("/restricted/projectnb/crem-bioinfo/reference_data/REFERENCES/Azimuth/lungref.SeuratData/azimuth/ref.Rds")
+habermann = readRDS("/restricted/projectnb/crem-trainees/Kotton_Lab/Eitan/OutsidePaperObjects/Seurat/Habermann.rds")
+```
+```{r Load}
+Zack <- readRDS("/restricted/projectnb/crem-bioinfo/project_workspace/25_10_07_Darrell/calculations/William_Data/Zacharias_William_dataset.Rds")
+Zack <- subset(Zack, subset = nFeature_RNA > 500 & nFeature_RNA < 5000 & percent_mito < 25)
+Zack$RNA <- CreateAssayObject(counts = Zack@assays$RNA$counts)
+Zack <- NormalizeData(Zack, normalization.method = "LogNormalize", scale.factor = 10000)
+Zack <- FindVariableFeatures(Zack, selection.method = "vst", nfeatures = 2000)
+Zack <- ScaleData(Zack, features = rownames(Zack))
+Zack <- RunPCA(Zack, features = VariableFeatures(object = Zack))
+ElbowPlot(Zack)
+
+Zack <- FindNeighbors(Zack, dims = 1:15) # based on output from elbow plot
+Zack <- FindClusters(Zack, resolution = 0.5)
+
+Zack <- RunUMAP(Zack, dims = 1:10)
+DimPlot(Zack, reduction = "umap")
+VlnPlot(Zack, features = c("Krt5", "Trp63"))
+cluster6.markers <- FindMarkers(Zack, ident.1 = 6, ident.2 = c(0, 1, 2, 3, 4, 5, 7, 8, 9, 10))
+saveRDS(Zack, "/restricted/projectnb/crem-trainees/Kotton_Lab/Eitan/OutsidePaperObjects/Seurat/ZachariasReannotated.rds")
+newAnnotations <- data.frame(seurat0.5=Zack$seurat_clusters, reannotation=Zack$celltypeEitan)
+write.csv(newAnnotations, file="/restricted/projectnb/crem-trainees/Kotton_Lab/Eitan/OutsidePaperObjects/WIP/ZachariasAnnotations.csv")
+```
+
+```{r, Markers}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(scCustomize)
+
+epi_genes = c('Ptprc', 'Wt1', 'Col1a1', 'Pecam1', 'Epcam', 'Nkx2-1', 'Sox2', 'Krt5', 'Trp63', 'Foxj1', 'Cdc20', "Scgb1a1", 'Scgb3a2', 'Muc5b', 'Cd74', 'Lrrk2', 'Lyz1', 'H2-Aa', 'Lrp2', 'Sftpb', 'Sftpc', 'Sftpd', 'Lamp3', 'Abca3', 'Nckap5', 'Krt8', 'Cdkn1a', 'Cldn4', 'Gdf15', 'Hopx', 'Rtkn2', 'Ager', 'Vegfa', 'Col4a3', 'Calca', 'Mki67', 'Vim', 'Fn1', 'Itgav', 'Sox8')
+AT2_markers <- c('Sftpc', 'Sftpa1', 'Sftpd', 'Lyz2', 'Etv5', 'Lamp3')
+AT1_markers <- c('Ager', 'Vegfa', 'Hopx', 'Rtkn2')
+proliferating_AT2_markers <- c('Mki67', 'Birc5', 'Top2a')
+activated_markers <- c('Lcn2', 'Il33', 'Retnla', 'Etv5', 'Abca3', 'Cebpa')
+ABI_markers <- c('Ndrg1', 'Sprr1a', 'Cldn4', 'Clu', 'Ly6a', 'Sfn', 'Krt19', 'Krt8')
+basal_markers <- c('Krt5', 'Krt17', 'Trp63', 'Aqp3', 'Krt15', 'Dapl1')
+B_markers <- c('Cd19', 'Cd69', 'Cd73', 'Cxcr3', 'Ccr6', 'Cd11a')
+alveolar_fibro_markers <- c('Tcf21', 'Mettl7a1', 'Slc7a10')
+adventitial_fibro_markers <- c('Pi16', 'Fbln1', 'Dcn')
+SMC_markers <- c('Slc11a1', 'Timp4', 'Acta2', 'Myh11')
+pericyte_markers <- c('Pde5a', 'Cspg4', 'Pdgfrb')
+peribronchial_fibro_markers <- c('Fgf18', 'Wnt5a', 'P2ry14')
+mesothelial_markers <- c('Wt1', 'Lrrn4', 'Upk3b')
+club_markers <- c("Chad", "Scgb1a1", "Scgb3a2")
+endothelial_markers <- c("Cdh5", "Pecam1", "Mcam")
+transitional_alveolar_fibro <- c('Mt2', 'Plac8', 'Saa3', 'Gas6', 'Lif', 'Ptgs2', 'Sfrp1', 'Cthrc1', 'Timp1', 'Spp1', 'Piezo2')
+alveolar_markers <- c(AT2_markers, proliferating_AT2_markers, ABI_markers, AT1_markers)
+
+cluster1.markers <- FindMarkers(Konkimalla_BHT, group.by="seurat_clusters", ident.1="13", #ident.2=c("3_0", "3_1"))
+                                #ident.2 = c(0, 2, 5, 6, 8, 9, 11, 13, 16, 18, 19))
+                                ident.2 = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19))
+subclust <- FindSubCluster(Konkimalla_BHT, 14, graph.name = 'integrated_snn', resolution = 0.8, subcluster.name='seurat_clusters')
+
+anno <- c()
+valid <- c("AT2", "AT1", "ABI", "Differentiating AT2", "Proliferating AT2")
+labels <- c()
+for (label in Konkimalla_BHT$celltype){
+    labels <- c(labels, if (label %in% valid) "Epithelial" else "Other")
+}
+Konkimalla_BHT$celltype <- anno
+DotPlot_scCustom(adata, features = epi_genes, cluster.idents=TRUE, group.by="seurat_clusters") + theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+```
+
+
